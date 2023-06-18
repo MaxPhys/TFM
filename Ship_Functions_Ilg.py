@@ -1,6 +1,7 @@
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 import numpy as np
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -14,6 +15,11 @@ xlsx = pd.ExcelFile(cargoes_file_path)
 df_cargoes = pd.read_excel(xlsx, 'Cargoes')
 df_chronology = pd.read_excel(xlsx, 'Chronology')
 df_proven_boleans = pd.read_excel(xlsx, 'Proven_boleans')
+
+# Remove possile whitespaces in strings
+df_cargoes = df_cargoes.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+df_chronology = df_chronology.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+df_proven_boleans = df_proven_boleans.applymap(lambda x: x.strip() if isinstance(x, str) else x)
 
 # Removing rows with empty cargo and 'Amphora type' as 'Unidentified'
 df_cargoes = df_cargoes[(df_cargoes['Amphora type'] != 'Unidentified')]
@@ -36,30 +42,11 @@ merged_df_2amph = merged_df_2amph.drop(columns=[merged_df_2amph.columns[3], merg
 print(merged_df_2amph)
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Manipulate df_proven_boleans
+# Get origins of amphora types
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 # Checking origins of each amphora type
 df_proven_boleans = df_proven_boleans.drop(columns=[df_proven_boleans.columns[0]])
-
-# Create an empty dictionary to store the origins for each amphora type
-amphora_origins = {}
-
-# Iterate over the rows of the dataframe
-for index, row in df_proven_boleans.iterrows():
-    amphora_type = row[0]  # Get the amphora type from the first column
-    origins = []  # List to store the origins of the current amphora type
-
-    # Iterate over the columns starting from the second column
-    for column in df_proven_boleans.columns[1:]:
-        if row[column] == 'yes':
-            origins.append(column)  # Add the origin to the list
-
-    amphora_origins[amphora_type] = origins  # Assign the origins to the amphora type in the dictionary
-
-# Print the dictionary
-for amphora_type, origins in amphora_origins.items():
-    print(f"Amphora Type: {amphora_type}, Origins: {origins}")
 
 # Create an empty dictionary to store the origins for each amphora type
 amphora_origins = {}
@@ -118,6 +105,23 @@ total_ships = len(merged_df_2amph['Oxford_wreckID'].unique())
 total_amphoras = len(amphora_count)
 print(f"Total Ships: {total_ships}")
 print(f"Total Amphoras: {total_amphoras}")
+print()
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Keep amphora origins present in 'amphora_count'
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Create a new dictionary to store the shortened amphora origins
+shortened_amphora_origins = {}
+
+# Iterate over the keys in amphora_origins
+for amphora_type in amphora_origins.keys():
+    # Check if the amphora type is in the amphora_count set
+    if amphora_type in amphora_count:
+        shortened_amphora_origins[amphora_type] = amphora_origins[amphora_type]
+
+# Update the amphora_origins dictionary with the shortened version
+amphora_origins = shortened_amphora_origins
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Strength of connections
@@ -169,32 +173,43 @@ for century, shipwrecks in shipwreck_dates.items():
     # Iterate over the shipwrecks in the current century
     for shipwreck_id, amphora_types in shipwrecks.items():
         # Generate unique pairs of amphora types without considering the order
-        pairs = {(min(amphora_types[i], amphora_types[j]), max(amphora_types[i], amphora_types[j])) for i in range(len(amphora_types)) for j in range(i + 1, len(amphora_types))}
+        pairs = {(min(amphora_types[i], amphora_types[j]), max(amphora_types[i], amphora_types[j])) for i in
+                 range(len(amphora_types)) for j in range(i + 1, len(amphora_types))}
 
         # Add edges to the network, excluding self-loops
         for pair in pairs:
             if pair[0] != pair[1]:
                 G.add_edge(pair[0], pair[1])
 
-    # Store the network for the current century
-    amphora_networks[century_label] = G
+    # Get the unique origins from the amphora_origins dictionary
+    all_origins = set()
+    for origins in amphora_origins.values():
+        all_origins.update(origins)
 
-    # Plot the network
+    # Generate a color palette with 25 different colors
+    color_palette = plt.cm.Set1(np.linspace(0, 1, len(all_origins)))
+
+    # Create a dictionary to store the color assignments for each origin
+    origin_colors = {}
+    for i, origin in enumerate(all_origins):
+        origin_colors[origin] = color_palette[i]
+
+    # Create a legend for the colors
+    legend_labels = list(origin_colors.keys())
+    legend_colors = list(origin_colors.values())
+
+    # Assign colors to nodes based on their origins
+    node_colors = [origin_colors.get(amphora_origins.get(node, [])[0]) for node in G.nodes]
+
+    # Plot the network with colored nodes
     plt.figure()
-    nx.draw(G, with_labels=True)
-    plt.title(f"Amphora Network - Century {century}")
+    plt.figure(figsize=(15, 15))
+    nx.draw(G, with_labels=True, node_color=node_colors)
+    plt.title("Amphora Network - Century {century_label}")
+
+    # Create proxy artists for the legend
+    legend_handles = [Patch(facecolor=color) for color in legend_colors]
+
+    # Create and display the legend using the proxy artists
+    plt.legend(legend_handles, legend_labels)
     plt.show()
-
-# Access the network for a specific century
-century_3 = amphora_networks['3 AD']
-
-# Access network information
-num_nodes = century_3.number_of_nodes()
-num_edges = century_3.number_of_edges()
-node_list = list(century_3.nodes)
-edge_list = list(century_3.edges)
-
-print(f"Number of Nodes: {num_nodes}")
-print(f"Number of Edges: {num_edges}")
-print("Nodes:", node_list)
-print("Edges:", edge_list)
