@@ -37,8 +37,8 @@ value_counts = merged_df['Oxford_wreckID'].value_counts()
 # Removing single values (cargo containing only one amphora type)
 single_occurrence_values = value_counts[value_counts == 1].index
 merged_df_2amph = merged_df[~merged_df['Oxford_wreckID'].isin(single_occurrence_values)]
-# Delete columns of 4, 3, 2 BC and 8 AD
-merged_df_2amph = merged_df_2amph.drop(columns=[merged_df_2amph.columns[3], merged_df_2amph.columns[4], merged_df_2amph.columns[5], merged_df_2amph.columns[14]])
+# Delete columns of 4 and 3 BC and 8 AD
+merged_df_2amph = merged_df_2amph.drop(columns=[merged_df_2amph.columns[3], merged_df_2amph.columns[4], merged_df_2amph.columns[14]])
 print(merged_df_2amph)
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -86,8 +86,10 @@ for _, group in merged_df_2amph.groupby('Oxford_wreckID'):
 
     if len(centuries_overlap) > 0:
         for century in centuries_overlap:
-            # Group 4-7 AD as one
-            if century in ['4 AD', '5 AD', '6 AD', '7 AD']:
+            # Group 2-1 BC and 4-7 AD as one
+            if century in ['2 BC', '1 BC']:
+                century_label = 'BC'
+            elif century in ['4 AD', '5 AD', '6 AD', '7 AD']:
                 century_label = '4-7 AD'
             else:
                 century_label = century
