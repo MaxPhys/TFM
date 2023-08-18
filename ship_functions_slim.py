@@ -2,6 +2,7 @@ import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+import seaborn as sns
 import scienceplots
 import itertools
 import community
@@ -9,8 +10,9 @@ import numpy as np
 import random
 import matplotlib.colors as mcolors
 import statistics
+from itertools import chain, combinations
 
-plt.style.use('science')
+sns.set_palette("colorblind")
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Manipulating the Excel files for shipwrecks
@@ -153,12 +155,12 @@ for _, group in merged_df_all.groupby('Oxford_wreckID'):
             shipwreck_dates.setdefault(century_label, {}).setdefault(shipwreck_id, set()) \
                 .update(amphora_types)
 
-print("All shipwrecks dated by groups:")
-for century, shipwrecks in shipwreck_dates.items():
-    print(f"Century: {century}")
-    for shipwreck_id, amphora_types in shipwrecks.items():
-        print(f"Shipwreck ID: {shipwreck_id}, Amphora Types: {amphora_types}")
-    print()
+#print("All shipwrecks dated by groups:")
+#for century, shipwrecks in shipwreck_dates.items():
+#    print(f"Century: {century}")
+#    for shipwreck_id, amphora_types in shipwrecks.items():
+#        print(f"Shipwreck ID: {shipwreck_id}, Amphora Types: {amphora_types}")
+#    print()
 
 total_ships = len(merged_df_all['Oxford_wreckID'].unique())
 total_amphoras = len(amphora_count)
@@ -184,6 +186,8 @@ for amphora_type in amphora_origins.keys():
 
 # Update the amphora_origins dictionary with the shortened version
 amphora_origins = shortened_amphora_origins
+
+print(amphora_origins_all)
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Strength of connections
@@ -212,11 +216,11 @@ for century, shipwrecks in shipwreck_dates.items():
     strength_of_connection[century_label] = connections
 
 # Print the strength of connection for each century
-for century, connections in strength_of_connection.items():
-    print(f"Century: {century}")
-    for pair, strength in connections.items():
-        print(f"Amphora Pair: {pair}, Strength of Connection: {strength}")
-    print()
+#for century, connections in strength_of_connection.items():
+#    print(f"Century: {century}")
+#    for pair, strength in connections.items():
+#        print(f"Amphora Pair: {pair}, Strength of Connection: {strength}")
+#    print()
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Empirical network
@@ -254,8 +258,8 @@ for century, shipwrecks in shipwreck_dates.items():
     for origins in amphora_origins.values():
         all_origins.update(origins)
 
-    # Generate a color palette with 25 different colors
-    color_palette = plt.cm.Set2(np.linspace(0, 1, len(all_origins)))
+    # Generate a color palette using the "colorblind" palette from Seaborn
+    color_palette = sns.color_palette("colorblind", n_colors=len(all_origins))
 
     # Create a dictionary to store the color assignments for each origin
     origin_colors = {}
@@ -266,7 +270,7 @@ for century, shipwrecks in shipwreck_dates.items():
     legend_labels = list(origin_colors.keys())
     legend_colors = list(origin_colors.values())
 
-    # Assign colors to nodes based on their origins
+    # Assign colors to nodes based on their origins using the Seaborn color palette
     node_colors = [origin_colors.get(amphora_origins.get(node, [])[0]) for node in G.nodes]
 
     # Extract the weights from the network
@@ -284,7 +288,7 @@ for century, shipwrecks in shipwreck_dates.items():
     plt.title(f"Amphora Network - Century {century_label}")
 
     # Create proxy artists for the legend
-    legend_handles = [Patch(facecolor=color) for color in legend_colors]
+    legend_handles = [Patch(facecolor=color) for color in color_palette]
 
     # Create and display the legend using the proxy artists
     plt.legend(legend_handles, legend_labels)
@@ -301,7 +305,7 @@ all_shipwrecks = merged_df_all.groupby('Oxford_wreckID')['Amphora type'].apply(l
 
 
 def interchange_cargoes(all_shipwrecks, production_times_all, num_randomizations):
-    num_frames = 10
+    num_frames = 1
     data_frames = []
 
     for frame in range(num_frames):
@@ -410,6 +414,7 @@ def no_singles_in_rand(rand_list):
     return rand_list
 
 
+# Randomized networks (rand_list_0 is the empirical network)
 rand_list_0 = no_singles_in_rand(rand_list_0)
 rand_list_100 = no_singles_in_rand(rand_list_100)
 rand_list_300 = no_singles_in_rand(rand_list_300)
@@ -417,7 +422,13 @@ rand_list_500 = no_singles_in_rand(rand_list_500)
 rand_list_800 = no_singles_in_rand(rand_list_800)
 rand_list_1000 = no_singles_in_rand(rand_list_1000)
 
-print(rand_list_100)
+# Copys of randomizations to analyze without slicing
+no_slice_0 = rand_list_0
+no_slice_100 = rand_list_100
+no_slice_300 = rand_list_300
+no_slice_500 = rand_list_500
+no_slice_800 = rand_list_800
+no_slice_1000 = rand_list_1000
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Date each rand_list_XXXX
@@ -475,7 +486,7 @@ pd.set_option('display.width', None)
 pd.set_option('display.max_colwidth', None)
 
 # Print the updated data frames with the added 'Dating Periods' column
-for i, df in enumerate(rand_list_100):
+for i, df in enumerate(rand_list_0):
     print(f"Data Frame {i+1}:")
     print(df)
     print()
@@ -518,7 +529,7 @@ def filter_and_group_dataframes(df_list):
     return bc_ships_list, ad1_ships_list, ad2_ships_list, ad3_ships_list, ad4_7_ships_list
 
 
-# Apply the function to all five lists
+# Apply the function to all six lists
 bc_ships_0, ad1_ships_0, ad2_ships_0, ad3_ships_0, ad4_7_ships_0 = filter_and_group_dataframes(rand_list_0)
 bc_ships_100, ad1_ships_100, ad2_ships_100, ad3_ships_100, ad4_7_ships_100 = filter_and_group_dataframes(rand_list_100)
 bc_ships_300, ad1_ships_300, ad2_ships_300, ad3_ships_300, ad4_7_ships_300 = filter_and_group_dataframes(rand_list_300)
@@ -534,7 +545,7 @@ print("Number of ships in '3 AD' time stamp in rand_list_100:", len(ad3_ships_10
 print("Number of ships in '4-7 AD' time stamp in rand_list_100:", len(ad4_7_ships_100[0]))
 
 # Print the list ad4_7_ships_100
-for i, df in enumerate(ad4_7_ships_100):
+for i, df in enumerate(ad4_7_ships_1000):
     print(f"Data Frame List {i + 1}:")
     print(df)
     print()
@@ -574,7 +585,7 @@ def create_weighted_graph(df):
 
 
 ###
-### 0 Randomizations
+# 0 Randomizations
 ###
 
 # Create a list to store the graphs for the dating periods
@@ -778,9 +789,50 @@ for df in ad4_7_ships_1000:
     ad4_7_ships_graphs_1000.append(graph)
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Include same procedure for the non-sliced data frames after each randomization step
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# 0
+no_slice_ships_graphs_0 = []
+for df in no_slice_0:
+    graph = create_weighted_graph(df)
+    no_slice_ships_graphs_0.append(graph)
+
+# 100
+no_slice_ships_graphs_100 = []
+for df in no_slice_100:
+    graph = create_weighted_graph(df)
+    no_slice_ships_graphs_100.append(graph)
+
+# 300
+no_slice_ships_graphs_300 = []
+for df in no_slice_300:
+    graph = create_weighted_graph(df)
+    no_slice_ships_graphs_300.append(graph)
+
+# 500
+no_slice_ships_graphs_500 = []
+for df in no_slice_500:
+    graph = create_weighted_graph(df)
+    no_slice_ships_graphs_500.append(graph)
+
+# 800
+no_slice_ships_graphs_800 = []
+for df in no_slice_800:
+    graph = create_weighted_graph(df)
+    no_slice_ships_graphs_800.append(graph)
+
+# 1000
+no_slice_ships_graphs_1000 = []
+for df in no_slice_1000:
+    graph = create_weighted_graph(df)
+    no_slice_ships_graphs_1000.append(graph)
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Average clustering coefficient's evolution
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+avg_cc_no_slice = []
 avg_cc_bc = []
 avg_cc_ad1 = []
 avg_cc_ad2 = []
@@ -832,21 +884,31 @@ for graph_list in [ad4_7_ships_graphs_0, ad4_7_ships_graphs_100, ad4_7_ships_gra
     overall_avg_cc = sum(avg_cc_per_set) / len(avg_cc_per_set)
     avg_cc_ad4_7.append(overall_avg_cc)
 
+# Iterate over non-sliced graphs
+for graph_list in [no_slice_ships_graphs_0, no_slice_ships_graphs_100, no_slice_ships_graphs_300, no_slice_ships_graphs_500, no_slice_ships_graphs_800, no_slice_ships_graphs_1000]:
+    avg_cc_per_set = []  # List to store average clustering coefficients for each graph in the set
+    for graph in graph_list:
+        avg_clustering_coefficient = nx.average_clustering(graph)
+        avg_cc_per_set.append(avg_clustering_coefficient)
+    overall_avg_cc = sum(avg_cc_per_set) / len(avg_cc_per_set)
+    avg_cc_no_slice.append(overall_avg_cc)
+
 # Plot the evolution
 # X values for the time stamps
 x_values = [0, 100, 300, 500, 800, 1000]
 
 # Plotting the average clustering coefficients
 plt.figure(figsize=(10, 6))
-
-plt.errorbar(x_values, avg_cc_bc, yerr=np.std(avg_cc_bc), color='blue', marker='o', linestyle='--', label='BC')
-plt.errorbar(x_values, avg_cc_ad1, yerr=np.std(avg_cc_ad1), color='red', marker='v', linestyle='--', label='1 AD')
-plt.errorbar(x_values, avg_cc_ad2, yerr=np.std(avg_cc_ad2), color='seagreen', marker='s', linestyle='--', label='2 AD')
-plt.errorbar(x_values, avg_cc_ad3, yerr=np.std(avg_cc_ad3), color='purple', marker='^', linestyle='--', label='3 AD')
-plt.errorbar(x_values, avg_cc_ad4_7, yerr=np.std(avg_cc_ad4_7), color='yellow', marker='D', linestyle='--', label='4-7 AD')
+plt.style.use('science')
+plt.errorbar(x_values, avg_cc_no_slice, yerr=np.std(avg_cc_no_slice), marker='x', color='black', linestyle='--', label='Total', capsize=5)
+plt.errorbar(x_values, avg_cc_bc, yerr=np.std(avg_cc_bc), marker='o', linestyle='--', label='BC', capsize=5)
+plt.errorbar(x_values, avg_cc_ad1, yerr=np.std(avg_cc_ad1), marker='v', linestyle='--', label='1 AD', capsize=5)
+plt.errorbar(x_values, avg_cc_ad2, yerr=np.std(avg_cc_ad2), marker='s', linestyle='--', label='2 AD', capsize=5)
+plt.errorbar(x_values, avg_cc_ad3, yerr=np.std(avg_cc_ad3), marker='^', linestyle='--', label='3 AD', capsize=5)
+plt.errorbar(x_values, avg_cc_ad4_7, yerr=np.std(avg_cc_ad4_7), marker='D', linestyle='--', label='4-7 AD', capsize=5)
 plt.xticks(x_values)
-plt.xlabel('Randomization Count')
-plt.ylabel(r'$\langle C \rangle$')
+plt.xlabel('Randomization Counts')
+plt.ylabel(r'Average Clustering Coefficient $\langle C \rangle$')
 plt.legend()
 
 plt.show()
@@ -855,6 +917,7 @@ plt.show()
 # Giant component's evolution
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+giant_size_no_slice = []
 giant_size_bc = []
 giant_size_ad1 = []
 giant_size_ad2 = []
@@ -906,21 +969,31 @@ for graph_list in [ad4_7_ships_graphs_0, ad4_7_ships_graphs_100, ad4_7_ships_gra
     avg_giant_size = sum(giant_size_per_set) / len(giant_size_per_set)
     giant_size_ad4_7.append(avg_giant_size)
 
+# Iterate over non-sliced graphs
+for graph_list in [no_slice_ships_graphs_0, no_slice_ships_graphs_100, no_slice_ships_graphs_300, no_slice_ships_graphs_500, no_slice_ships_graphs_800, no_slice_ships_graphs_1000]:
+    giant_size_per_set = []  # List to store giant component sizes for each graph in the set
+    for graph in graph_list:
+        giant_component_size = len(max(nx.connected_components(graph), key=len))
+        giant_size_per_set.append(giant_component_size)
+    avg_giant_size = sum(giant_size_per_set) / len(giant_size_per_set)
+    giant_size_no_slice.append(avg_giant_size)
+
 # Plot the evolution
 # X values for the time stamps
 x_values = [0, 100, 300, 500, 800, 1000]
 
 # Plotting the giant component sizes
 plt.figure(figsize=(10, 6))
-
-plt.errorbar(x_values, giant_size_bc, yerr=np.std(giant_size_bc), color='blue', marker='o', linestyle='--', label='BC')
-plt.errorbar(x_values, giant_size_ad1, yerr=np.std(giant_size_ad1), color='red', marker='v', linestyle='--', label='1 AD')
-plt.errorbar(x_values, giant_size_ad2, yerr=np.std(giant_size_ad2), color='seagreen', marker='s', linestyle='--', label='2 AD')
-plt.errorbar(x_values, giant_size_ad3, yerr=np.std(giant_size_ad3), color='purple', marker='^', linestyle='--', label='3 AD')
-plt.errorbar(x_values, giant_size_ad4_7, yerr=np.std(giant_size_ad4_7), color='yellow', marker='D', linestyle='--', label='4-7 AD')
+plt.style.use('science')
+plt.errorbar(x_values, giant_size_no_slice, yerr=np.std(giant_size_no_slice), marker='x', color='black', linestyle='--', label='Total', capsize=5)
+plt.errorbar(x_values, giant_size_bc, yerr=np.std(giant_size_bc), marker='o', linestyle='--', label='BC', capsize=5)
+plt.errorbar(x_values, giant_size_ad1, yerr=np.std(giant_size_ad1), marker='v', linestyle='--', label='1 AD', capsize=5)
+plt.errorbar(x_values, giant_size_ad2, yerr=np.std(giant_size_ad2), marker='s', linestyle='--', label='2 AD', capsize=5)
+plt.errorbar(x_values, giant_size_ad3, yerr=np.std(giant_size_ad3), marker='^', linestyle='--', label='3 AD', capsize=5)
+plt.errorbar(x_values, giant_size_ad4_7, yerr=np.std(giant_size_ad4_7), marker='D', linestyle='--', label='4-7 AD', capsize=5)
 plt.xticks(x_values)
-plt.xlabel('Randomization Count')
-plt.ylabel(r'$\langle S_{GC} \rangle$')
+plt.xlabel('Randomization Counts')
+plt.ylabel(r'Average Giant Component Size $S_{GC}$')
 plt.legend()
 
 plt.show()
@@ -929,6 +1002,7 @@ plt.show()
 # Average degree's evolution
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+avg_degree_no_slice = []
 avg_degree_bc = []
 avg_degree_ad1 = []
 avg_degree_ad2 = []
@@ -980,21 +1054,31 @@ for graph_list in [ad4_7_ships_graphs_0, ad4_7_ships_graphs_100, ad4_7_ships_gra
     overall_avg_degree = sum(avg_degree_per_set) / len(avg_degree_per_set)
     avg_degree_ad4_7.append(overall_avg_degree)
 
+# Iterate over non-sliced graphs
+for graph_list in [no_slice_ships_graphs_0, no_slice_ships_graphs_100, no_slice_ships_graphs_300, no_slice_ships_graphs_500, no_slice_ships_graphs_800, no_slice_ships_graphs_1000]:
+    avg_degree_per_set = []  # List to store average degrees for each graph in the set
+    for graph in graph_list:
+        avg_node_degree = sum(dict(graph.degree()).values()) / len(graph)
+        avg_degree_per_set.append(avg_node_degree)
+    overall_avg_degree = sum(avg_degree_per_set) / len(avg_degree_per_set)
+    avg_degree_no_slice.append(overall_avg_degree)
+
 # Plot the evolution
 # X values for the time stamps
 x_values = [0, 100, 300, 500, 800, 1000]
 
 # Plotting the average degrees
 plt.figure(figsize=(10, 6))
-
-plt.errorbar(x_values, avg_degree_bc, yerr=np.std(avg_degree_bc), color='blue', marker='o', linestyle='--', label='BC')
-plt.errorbar(x_values, avg_degree_ad1, yerr=np.std(avg_degree_ad1), color='red', marker='v', linestyle='--', label='1 AD')
-plt.errorbar(x_values, avg_degree_ad2, yerr=np.std(avg_degree_ad2), color='seagreen', marker='s', linestyle='--', label='2 AD')
-plt.errorbar(x_values, avg_degree_ad3, yerr=np.std(avg_degree_ad3), color='purple', marker='^', linestyle='--', label='3 AD')
-plt.errorbar(x_values, avg_degree_ad4_7, yerr=np.std(avg_degree_ad4_7), color='yellow', marker='D', linestyle='--', label='4-7 AD')
+plt.style.use('science')
+plt.errorbar(x_values, avg_degree_no_slice, yerr=np.std(avg_degree_no_slice), marker='x', color='black', linestyle='--', label='Total', capsize=5)
+plt.errorbar(x_values, avg_degree_bc, yerr=np.std(avg_degree_bc), marker='o', linestyle='--', label='BC', capsize=5)
+plt.errorbar(x_values, avg_degree_ad1, yerr=np.std(avg_degree_ad1), marker='v', linestyle='--', label='1 AD', capsize=5)
+plt.errorbar(x_values, avg_degree_ad2, yerr=np.std(avg_degree_ad2), marker='s', linestyle='--', label='2 AD', capsize=5)
+plt.errorbar(x_values, avg_degree_ad3, yerr=np.std(avg_degree_ad3), marker='^', linestyle='--', label='3 AD', capsize=5)
+plt.errorbar(x_values, avg_degree_ad4_7, yerr=np.std(avg_degree_ad4_7), marker='D', linestyle='--', label='4-7 AD', capsize=5)
 plt.xticks(x_values)
-plt.xlabel('Randomization Count')
-plt.ylabel(r'$\langle k \rangle$')
+plt.xlabel('Randomization Counts')
+plt.ylabel(r'Average Degree $\langle k \rangle$')
 plt.legend()
 
 plt.show()
@@ -1003,6 +1087,7 @@ plt.show()
 # Average weighted degree's evolution
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+avg_weighted_degree_no_slice = []
 avg_weighted_degree_bc = []
 avg_weighted_degree_ad1 = []
 avg_weighted_degree_ad2 = []
@@ -1054,21 +1139,31 @@ for graph_list in [ad4_7_ships_graphs_0, ad4_7_ships_graphs_100, ad4_7_ships_gra
     overall_avg_weighted_degree = sum(avg_weighted_degree_per_set) / len(avg_weighted_degree_per_set)
     avg_weighted_degree_ad4_7.append(overall_avg_weighted_degree)
 
+# Iterate over non-sliced graphs
+for graph_list in [no_slice_ships_graphs_0, no_slice_ships_graphs_100, no_slice_ships_graphs_300, no_slice_ships_graphs_500, no_slice_ships_graphs_800, no_slice_ships_graphs_1000]:
+    avg_weighted_degree_per_set = []  # List to store average weighted degrees for each graph in the set
+    for graph in graph_list:
+        avg_weighted_node_degree = sum(dict(graph.degree(weight='weight')).values()) / len(graph)
+        avg_weighted_degree_per_set.append(avg_weighted_node_degree)
+    overall_avg_weighted_degree = sum(avg_weighted_degree_per_set) / len(avg_weighted_degree_per_set)
+    avg_weighted_degree_no_slice.append(overall_avg_weighted_degree)
+
 # Plot the evolution
 # X values for the time stamps
 x_values = [0, 100, 300, 500, 800, 1000]
 
 # Plotting the average weighted degrees
 plt.figure(figsize=(10, 6))
-
-plt.errorbar(x_values, avg_weighted_degree_bc, yerr=np.std(avg_weighted_degree_bc), color='blue', marker='o', linestyle='--', label='BC')
-plt.errorbar(x_values, avg_weighted_degree_ad1, yerr=np.std(avg_weighted_degree_ad1), color='red', marker='v', linestyle='--', label='1 AD')
-plt.errorbar(x_values, avg_weighted_degree_ad2, yerr=np.std(avg_weighted_degree_ad2), color='seagreen', marker='s', linestyle='--', label='2 AD')
-plt.errorbar(x_values, avg_weighted_degree_ad3, yerr=np.std(avg_weighted_degree_ad3), color='purple', marker='^', linestyle='--', label='3 AD')
-plt.errorbar(x_values, avg_weighted_degree_ad4_7, yerr=np.std(avg_weighted_degree_ad4_7), color='yellow', marker='D', linestyle='--', label='4-7 AD')
+plt.style.use('science')
+plt.errorbar(x_values, avg_weighted_degree_no_slice, yerr=np.std(avg_weighted_degree_no_slice), marker='x', color='black', linestyle='--', label='Total', capsize=5)
+plt.errorbar(x_values, avg_weighted_degree_bc, yerr=np.std(avg_weighted_degree_bc), marker='o', linestyle='--', label='BC', capsize=5)
+plt.errorbar(x_values, avg_weighted_degree_ad1, yerr=np.std(avg_weighted_degree_ad1), marker='v', linestyle='--', label='1 AD', capsize=5)
+plt.errorbar(x_values, avg_weighted_degree_ad2, yerr=np.std(avg_weighted_degree_ad2), marker='s', linestyle='--', label='2 AD', capsize=5)
+plt.errorbar(x_values, avg_weighted_degree_ad3, yerr=np.std(avg_weighted_degree_ad3), marker='^', linestyle='--', label='3 AD', capsize=5)
+plt.errorbar(x_values, avg_weighted_degree_ad4_7, yerr=np.std(avg_weighted_degree_ad4_7), marker='D', linestyle='--', label='4-7 AD', capsize=5)
 plt.xticks(x_values)
-plt.xlabel('Randomization Count')
-plt.ylabel(r'$\langle k_{W} \rangle$')
+plt.xlabel('Randomization Counts')
+plt.ylabel(r'Average Weighted Degree $\langle k_{W} \rangle$')
 plt.legend()
 
 plt.show()
@@ -1077,6 +1172,7 @@ plt.show()
 # Modularity's evolution
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+modularity_no_slice = []
 modularity_bc = []
 modularity_ad1 = []
 modularity_ad2 = []
@@ -1136,224 +1232,365 @@ for graph_list in [ad4_7_ships_graphs_0, ad4_7_ships_graphs_100, ad4_7_ships_gra
     overall_modularity = sum(modularity_per_set) / len(modularity_per_set)
     modularity_ad4_7.append(overall_modularity)
 
+# Iterate over non-sliced graphs
+for graph_list in [no_slice_ships_graphs_0, no_slice_ships_graphs_100, no_slice_ships_graphs_300, no_slice_ships_graphs_500, no_slice_ships_graphs_800, no_slice_ships_graphs_1000]:
+    modularity_per_set = []  # List to store modularity values for each graph in the set
+    for graph in graph_list:
+        modularity_value = calculate_modularity(graph)
+        modularity_per_set.append(modularity_value)
+    overall_modularity = sum(modularity_per_set) / len(modularity_per_set)
+    modularity_no_slice.append(overall_modularity)
+
 # Plot the evolution
 # X values for the time stamps
 x_values = [0, 100, 300, 500, 800, 1000]
 
 # Plotting the modularity values
 plt.figure(figsize=(10, 6))
-
-plt.errorbar(x_values, modularity_bc, yerr=np.std(modularity_bc), color='blue', marker='o', linestyle='--', label='BC')
-plt.errorbar(x_values, modularity_ad1, yerr=np.std(modularity_ad1), color='red', marker='v', linestyle='--', label='1 AD')
-plt.errorbar(x_values, modularity_ad2, yerr=np.std(modularity_ad2), color='seagreen', marker='s', linestyle='--', label='2 AD')
-plt.errorbar(x_values, modularity_ad3, yerr=np.std(modularity_ad3), color='purple', marker='^', linestyle='--', label='3 AD')
-plt.errorbar(x_values, modularity_ad4_7, yerr=np.std(modularity_ad4_7), color='yellow', marker='D', linestyle='--', label='4-7 AD')
+plt.style.use('science')
+plt.errorbar(x_values, modularity_no_slice, yerr=np.std(modularity_no_slice), marker='x', color='black', linestyle='--', label='Total', capsize=5)
+plt.errorbar(x_values, modularity_bc, yerr=np.std(modularity_bc), marker='o', linestyle='--', label='BC', capsize=5)
+plt.errorbar(x_values, modularity_ad1, yerr=np.std(modularity_ad1), marker='v', linestyle='--', label='1 AD', capsize=5)
+plt.errorbar(x_values, modularity_ad2, yerr=np.std(modularity_ad2), marker='s', linestyle='--', label='2 AD', capsize=5)
+plt.errorbar(x_values, modularity_ad3, yerr=np.std(modularity_ad3), marker='^', linestyle='--', label='3 AD', capsize=5)
+plt.errorbar(x_values, modularity_ad4_7, yerr=np.std(modularity_ad4_7), marker='D', linestyle='--', label='4-7 AD', capsize=5)
 plt.xticks(x_values)
-plt.xlabel('Randomization Count')
-plt.ylabel(r'$Q$')
+plt.xlabel('Randomization Counts')
+plt.ylabel(r'Average Modularity $Q$')
 plt.legend()
 
 plt.show()
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Analyze each networks properties for time stamps and randomization steps
+# Create the empirical (observed) network
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+# For simplification purposes, switch keys and values in amphora_origins_all
+origins_to_amphora_types = {}
+for amphora_type, origins in amphora_origins_all.items():
+    for origin in origins:
+        if origin not in origins_to_amphora_types:
+            origins_to_amphora_types[origin] = []
+        origins_to_amphora_types[origin].append(amphora_type)
+
+# Print the origins and associated amphora types
+for origin, amphora_types in origins_to_amphora_types.items():
+    print(f"Origin: {origin}, Amphora Types: {amphora_types}")
+
+# The five empirical graphs for each time stamp
+emp_bc = bc_ships_0[0]
+emp_ad1 = ad1_ships_0[0]
+emp_ad2 = ad2_ships_0[0]
+emp_ad3 = ad3_ships_0[0]
+emp_ad4_7 = ad4_7_ships_0[0]
+
+print('PRINT EMPIRICAL SHIPS 4-7AD')
+print(emp_ad4_7)
+print()
+
+
+# Helper function to extract unique origins from amphora types
+def extract_unique_origins(amphora_type_lists):
+    unique_origins = set()
+    for amphora_type_list in amphora_type_lists:
+        for amphora_type in amphora_type_list:
+            if amphora_type in amphora_origins_all:
+                origins = amphora_origins_all[amphora_type]
+                unique_origins.update(origins)
+    return list(unique_origins)
+
+
+# Extract unique origins from data frames
+unique_origins_bc = extract_unique_origins(emp_bc['Amphora type'])
+unique_origins_ad1 = extract_unique_origins(emp_ad1['Amphora type'])
+unique_origins_ad2 = extract_unique_origins(emp_ad2['Amphora type'])
+unique_origins_ad3 = extract_unique_origins(emp_ad3['Amphora type'])
+unique_origins_ad4_7 = extract_unique_origins(emp_ad4_7['Amphora type'])
+
+# Create networks with origins as nodes
+graph_bc = nx.Graph()
+graph_bc.add_nodes_from(unique_origins_bc)
+
+graph_ad1 = nx.Graph()
+graph_ad1.add_nodes_from(unique_origins_ad1)
+
+graph_ad2 = nx.Graph()
+graph_ad2.add_nodes_from(unique_origins_ad2)
+
+graph_ad3 = nx.Graph()
+graph_ad3.add_nodes_from(unique_origins_ad3)
+
+graph_ad4_7 = nx.Graph()
+graph_ad4_7.add_nodes_from(unique_origins_ad4_7)
+
+# Create a dictionary of origins with associated amphora types
+origins_with_amphora_types = {}
+for amphora_type, origins in amphora_origins_all.items():
+    for origin in origins:
+        if origin not in origins_with_amphora_types:
+            origins_with_amphora_types[origin] = []
+        origins_with_amphora_types[origin].append(amphora_type)
+
+# Assigning Amphora Types to Nodes:
+for graph, data_frame in [(graph_bc, emp_bc), (graph_ad1, emp_ad1), (graph_ad2, emp_ad2), (graph_ad3, emp_ad3),
+                          (graph_ad4_7, emp_ad4_7)]:
+    for node in graph.nodes():
+        amphora_types_from_origin = origins_with_amphora_types.get(node, [])
+        amphora_types_in_data_frame = set()
+
+        # Extract individual amphora types from the list in the data frame
+        for amphora_type_list in data_frame['Amphora type']:
+            amphora_types_in_data_frame.update(amphora_type_list)
+
+        # Filter out amphora types that are not present in the data frame
+        valid_amphora_types = [amphora_type for amphora_type in amphora_types_from_origin if
+                               amphora_type in amphora_types_in_data_frame]
+
+        graph.nodes[node]['Amphora types'] = valid_amphora_types
+
+# Print node attributes for a test graph (e.g., graph_bc)
+for node, attributes in graph_ad3.nodes(data=True):
+    print(f"Node: {node}, Amphora Types: {attributes.get('Amphora types', [])}")
+
+# Iterate through the graphs and their corresponding data frames
+for graph, data_frame in [(graph_bc, emp_bc), (graph_ad1, emp_ad1), (graph_ad2, emp_ad2), (graph_ad3, emp_ad3),
+                          (graph_ad4_7, emp_ad4_7)]:
+    for _, row in data_frame.iterrows():
+        cargo_amphora_types = row['Amphora type']
+
+        # Iterate through the nodes in the graph
+        for node in graph.nodes():
+            node_amphora_types = graph.nodes[node].get('Amphora types', [])
+
+            # Check if any amphora types match between cargo and node attributes
+            if any(amphora_type in cargo_amphora_types for amphora_type in node_amphora_types):
+                # Add an edge between the nodes
+                for other_node in graph.nodes():
+                    if other_node != node:
+                        other_node_amphora_types = graph.nodes[other_node].get('Amphora types', [])
+                        if any(amphora_type in cargo_amphora_types for amphora_type in other_node_amphora_types):
+                            graph.add_edge(node, other_node)
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Create the empirical (observed) partitions (Version 1, no inter-amphora type trade)
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+# Function to extract provenance data from a graph
+def extract_provenance_data(graph):
+    provenances_list = list(graph.nodes())
+    provenance_to_amphora_dict = {}
+
+    for provenance in provenances_list:
+        provenance_to_amphora_dict[provenance] = graph.nodes[provenance].get('Amphora types', [])
+
+    return provenances_list, provenance_to_amphora_dict
+
+
+# Function to create all possible partitions of provenances into two groups
+def create_partitions(provenances_list):
+    all_partitions = []
+
+    for r in range(1, len(provenances_list)):
+        partitions = combinations(provenances_list, r)
+        all_partitions.extend(partitions)
+
+    return all_partitions
+
+
+# List of networks
+networks = [graph_bc, graph_ad1, graph_ad2, graph_ad3, graph_ad4_7]
+
+# List to store partitions for each network
+partitions_list = []
+
+# Iterate through networks and extract provenance data
+for graph in networks:
+    prov_list, _ = extract_provenance_data(graph)
+    partitions = create_partitions(prov_list)
+    partitions_list.append(partitions)
+
+# List to store valid partitions for each network
+valid_partitions_list = []
+
+# List to store valid and invalid partitions count for each network
+valid_partitions_count_list = []
+invalid_partitions_count_list = []
+
+# Iterate through networks and extract provenance data
+for graph in networks:
+    prov_list, prov_to_amphora = extract_provenance_data(graph)
+    partitions = create_partitions(prov_list)
+    valid_partitions = []
+    valid_count = 0
+    invalid_count = 0
+
+    for partition in partitions:
+        side_A = partition
+        side_B = [prov for prov in prov_list if prov not in partition]
+
+        # Exclude 'Unknown/Uncertain' amphora types from both sides
+        side_A_amphora = [amphora for provenance in side_A for amphora in prov_to_amphora[provenance] if
+                          provenance != 'Unknown/Uncertain']
+        side_B_amphora = [amphora for provenance in side_B for amphora in prov_to_amphora[provenance] if
+                          provenance != 'Unknown/Uncertain']
+
+        # Calculate the percentage of nodes in each side
+        side_A_percentage = len(side_A) / len(prov_list) * 100
+        side_B_percentage = len(side_B) / len(prov_list) * 100
+
+        # Check if the partition is valid
+        if 20 <= side_A_percentage <= 80 and 20 <= side_B_percentage <= 80:
+            valid_partitions.append((side_A, side_B))
+            valid_count += 1
+        else:
+            invalid_count += 1
+
+    valid_partitions_list.append(valid_partitions)
+    valid_partitions_count_list.append(valid_count)
+    invalid_partitions_count_list.append(invalid_count)
+
+# Print the count of valid and invalid partitions for each network
+for i, (valid_count, invalid_count) in enumerate(zip(valid_partitions_count_list, invalid_partitions_count_list)):
+    print(f"Network {i + 1}:")
+    print("Valid Partitions:", valid_count)
+    print("Invalid Partitions:", invalid_count)
+    print()
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Analyzing the partitions of the observed networks
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# List to store analysis results for each network
+analysis_results_list = []
+
+# Iterate through the valid partitions for each network
+for i, valid_partitions in enumerate(valid_partitions_list):
+    print(f"Analysis for Network {i + 1}:")
+
+    for j, partition in enumerate(valid_partitions):
+        side_A, side_B = partition
+
+        # Initialize weights
+        W_total_emp = 0
+        W_s1_emp = 0
+        W_s2_emp = 0
+
+        # Calculate the total weight W_total_emp of edges in the graph
+        for node1, node2 in graph.edges():
+            W_total_emp += 1  # Increase the total weight for each edge
+
+            # Calculate the total weight of edges between nodes that are part of the same side of the partition
+            if node1 in side_A and node2 in side_A:
+                W_s1_emp += 1
+            elif node1 in side_B and node2 in side_B:
+                W_s2_emp += 1
+
+        # Calculate the total weight of edges between nodes of different sides of the partition: W_d_emp = W_total_emp -  W_s1_emp - W_s2_emp
+        W_d_emp = W_total_emp - W_s1_emp - W_s2_emp
+
+        # Calculate the mixing weight: M_emp = W_d_emp / W_total_emp
+        M_emp = W_d_emp / W_total_emp if W_total_emp > 0 else 0
+
+        # Print the analysis results for the current partition
+        print(f"Partition {j + 1}:")
+        print(f"Total weight of edges in the graph: {W_total_emp}")
+        print(f"Total weight of edges within side A: {W_s1_emp}")
+        print(f"Total weight of edges within side B: {W_s2_emp}")
+        print(f"Total weight of edges between sides: {W_d_emp}")
+        print(f"Mixing weight (M): {M_emp}")
+        print()
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Partitions of the randomized networks
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+'''# Function to perform Girvan-Newman algorithm
+def girvan_newman(graph):
+    def find_best_edge(G0):
+        eb = nx.edge_betweenness_centrality(G0)
+        return sorted(eb.items(), key=lambda x: x[1], reverse=True)[0][0]
+
+    components = [c for c in nx.connected_components(graph)]
+    while len(components) == 1:
+        edge_to_remove = find_best_edge(graph)
+        graph.remove_edge(*edge_to_remove)
+        components = [c for c in nx.connected_components(graph)]
+
+    return components
+
+
+# Lists of networks for different centuries
+networks_list = [emp_networks_bc, emp_networks_ad1, emp_networks_ad2, emp_networks_ad3, emp_networks_ad4_7]
+
+# Perform Girvan-Newman algorithm for each century's networks
+partitions = {}
+for century_networks in networks_list:
+    century_partitions = []
+
+    for graph in century_networks:
+        components = girvan_newman(graph)
+        century_partitions.extend(components)
+
+    partitions[century_networks] = century_partitions
+
+# Filter partitions based on size criteria
+filtered_partitions = {}
+for century_networks, century_components in partitions.items():
+    filtered_components = []
+
+    for component in century_components:
+        num_nodes = sum(len(graph.nodes()) for graph in component)
+        total_nodes = sum(len(graph.nodes()) for graph in century_networks)
+
+        if 0.2 * total_nodes < num_nodes < 0.8 * total_nodes:
+            filtered_components.append(component)
+
+    filtered_partitions[century_networks] = filtered_components
+
+# Print the filtered partitions
+for century_networks, components in filtered_partitions.items():
+    print(f"Partitions for Century {century_networks}:")
+    for i, component in enumerate(components):
+        print(f"Partition {i + 1}: {component}")
+    print()
+
+# Calculate community metrics and mixing weights
+for century_networks, components in filtered_partitions.items():
+    print(f"Century {century_networks}:")
+
+    for i, component in enumerate(components):
+        W_tot = 0
+        W_S = 0
+        W_sameprov = 0
+
+        for graph in component:
+            for u, v, data in graph.edges(data=True):
+                provenance_u = amphora_origins.get(u, [None])[0]
+                provenance_v = amphora_origins.get(v, [None])[0]
+                weight = data.get('weight', 0)
+
+                if provenance_u != provenance_v:
+                    W_tot += weight
+
+                if provenance_u == provenance_v:
+                    W_S += weight
+                else:
+                    W_sameprov += weight
+
+        M = 0 if W_tot == 0 else W_sameprov / W_tot
+
+        print(f"Partition {i + 1}:")
+        print(f"Total weight of links between different provenances: {W_tot}")
+        print(f"Total weight of links between nodes belonging to the same side of the partition: {W_S}")
+        print(f"Total weight of links between nodes belonging to different sides of the partition: {W_sameprov}")
+        print(f"Mixing weight (M): {M}")
+        print()
+'''
+
+# Rest
 
 '''
-# We start by deleting single values for all evolution data frames
-for key, df_dict in evolution_rand_df.items():
-    for frame_num, df in df_dict.items():
-        # Convert 'Amphora type' column to lists
-        df['Amphora type'] = df['Amphora type'].apply(lambda x: [x] if isinstance(x, int) else x)
-
-        # Count the number of entries in the 'Amphora type' column
-        df['Amphora Count'] = df['Amphora type'].apply(len)
-
-        # Create a copy of the sliced DataFrame
-        df_filtered = df[df['Amphora Count'] > 1].copy()
-
-        # Remove the 'Amphora Count' column
-        df_filtered.drop('Amphora Count', axis=1, inplace=True)
-
-        # Update the data frame in the dictionary
-        df_dict[frame_num] = df_filtered
-
-    # Update the modified data frames in the dictionary
-    evolution_rand_df[key] = df_dict
-
-# Next re-group all randomized data frames with same keys (all the 100s, 300s, ...)
-grouped_data_frames = {}
-
-for key, df_dict in evolution_rand_df.items():
-    for frame_num, df in df_dict.items():
-        if frame_num not in grouped_data_frames:
-            grouped_data_frames[frame_num] = {}
-        grouped_data_frames[frame_num][key] = df
-
-# Divide grouped_data_frames, by creating five lists, each containing all data frames
-# after 100, 300, 500, 800 and 1000 randomizations, respectively
-df_after_100 = []
-df_after_300 = []
-df_after_500 = []
-df_after_800 = []
-df_after_1000 = []
-
-for key, df_dict in grouped_data_frames.items():
-    if key == 100:
-        df_after_100.extend(df_dict.values())
-    elif key == 300:
-        df_after_300.extend(df_dict.values())
-    elif key == 500:
-        df_after_500.extend(df_dict.values())
-    elif key == 800:
-        df_after_800.extend(df_dict.values())
-    elif key == 1000:
-        df_after_1000.extend(df_dict.values())
-
-print(df_after_100)
-
-
-# Now we are going to create 5 time stamps for all of them
-def date_shipwrecks(mixed_list):
-    new_dict = {}  # Dictionary to store the periods for each shipwreck
-    for i in range(len(mixed_list)):
-        df = mixed_list[i]
-        shipwreck_id = df['Oxford_wreckID'].iloc[0]  # Assuming each dataframe corresponds to a single shipwreck
-
-        # Initialize a set to store the possible centuries for the current shipwreck
-        possible_centuries = set()
-
-        for index, row in df.iterrows():
-            amphora_types = row['Amphora type']
-
-            # Check the production century of the first amphora type
-            first_amphora_type = amphora_types[0]
-            if first_amphora_type in production_times:
-                production_century = production_times[first_amphora_type][0]
-                possible_centuries.add(production_century)
-
-        # Add the possible centuries for the shipwreck to the new_dict dictionary
-        for century in possible_centuries:
-            if century in new_dict:
-                new_dict[century][shipwreck_id] = amphora_type
-            else:
-                new_dict[century] = {shipwreck_id: possible_centuries}
-    return new_dict
-
-
-
-# Call the function for each dictionary
-dated_shipwrecks_100 = date_shipwrecks(df_after_100)
-dated_shipwrecks_300 = date_shipwrecks(df_after_300)
-dated_shipwrecks_500 = date_shipwrecks(df_after_500)
-dated_shipwrecks_800 = date_shipwrecks(df_after_800)
-dated_shipwrecks_1000 = date_shipwrecks(df_after_1000)
-
-
-# Print the updated groups
-print("Group 100:")
-print(dated_shipwrecks_100)
-print()
-
-
-
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Country trade from the randomized network
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-# Manipulate amphora_origins
-provenances = {}
-
-for amphora, origins in amphora_origins.items():
-    for origin in origins:
-        if origin not in provenances:
-            provenances[origin] = []
-        provenances[origin].append(amphora)
-
-print(amphora_origins)
-print()
-print(provenances)
-print()
-print(shipwreck_dates)
-print()
-
-# Create the graph for each time stamp
-graphs = {}
-
-# Iterate over each time stamp
-for time_stamp in shipwreck_dates:
-    # Convert the values in the provenances dictionary to sets
-    for provenance, amphora_types in provenances.items():
-        provenances[provenance] = set(amphora_types)
-
-    # Create the graph
-    graph = nx.Graph()
-
-    # Add nodes for origins
-    for provenance in provenances:
-        graph.add_node(provenance)
-
-    # Add links between origins based on amphora types in shipwrecks
-    for shipwreck, amphora_types in shipwreck_dates[time_stamp].items():
-        origins = set()
-        for amphora_type in amphora_types:
-            for provenance, amphora_list in provenances.items():
-                if amphora_type in amphora_list:
-                    origins.add(provenance)
-
-        for origin_a in origins:
-            for origin_b in origins:
-                if origin_a != origin_b:
-                    if graph.has_edge(origin_a, origin_b):
-                        # Increase the edge weight if the edge already exists
-                        graph[origin_a][origin_b]['weight'] += 1
-                    else:
-                        # Add a new edge with weight 1
-                        graph.add_edge(origin_a, origin_b, weight=1)
-
-    graphs[time_stamp] = graph
-
-# Plot the graphs
-for time_stamp, graph in graphs.items():
-    plt.figure()
-    plt.title(f"Graph {time_stamp}")
-
-    pos = nx.kamada_kawai_layout(graph, scale=10000)
-
-    # Extract edge weights
-    edge_weights = [graph[u][v]['weight'] for u, v in graph.edges()]
-
-    # Generate random colors for nodes
-    random_colors = [random.choice(list(mcolors.CSS4_COLORS.keys())) for _ in graph.nodes()]
-
-    # Draw nodes with random colors
-    nx.draw_networkx_nodes(graph, pos, node_color=random_colors)
-
-    # Draw edges with thinner widths based on the edge weights
-    edge_widths = [5 / w for w in edge_weights]
-    nx.draw_networkx_edges(graph, pos, width=edge_widths)
-
-    # Create legend
-    legend_labels = [node for node in graph.nodes()]
-    legend_handles = [plt.Line2D([], [], marker='o', markersize=10, color=color, label=label) for color, label in zip(random_colors, legend_labels)]
-    plt.legend(handles=legend_handles)
-
-    plt.axis('off')
-    plt.show()
-
-# Store each graph
-graph_bc = graphs['BC']
-graph_1ad = graphs['1 AD']
-graph_2ad = graphs['2 AD']
-graph_3ad = graphs['3 AD']
-graph_4_7ad = graphs['4-7 AD']
-
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Partitions of the empirical network
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-
 # Function to perform Girvan-Newman algorithm
 def girvan_newman(graph):
     def find_best_edge(G0):
@@ -1481,11 +1718,11 @@ for century, components in filtered_partitions.items():
     mixing_weights[century] = M
 
     print(f"Mixing weight (M) for Century {century}: {M}")
-
+'''
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Manipulate randomized network for partitions
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
+'''
 # Now we want to do the same for randomized graphs
 # For that we start by manipulating our data frames
 # Iterate over each data frame in rand_list_1000
