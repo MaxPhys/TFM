@@ -279,7 +279,7 @@ for century, shipwrecks in shipwreck_dates.items():
     # Scale the weights to the desired range for line width
     min_weight = min(weights)
     max_weight = max(weights)
-    scaled_weights = [weight for weight in weights] # NOT SCALED: (weight-min_weight)/(max_weight-min_weight)
+    scaled_weights = [5 * (weight - min_weight) / (max_weight - min_weight) + 1 for weight in weights]
 
     # Plot the network with colored nodes and scaled line widths
     plt.figure()
@@ -305,7 +305,7 @@ all_shipwrecks = merged_df_all.groupby('Oxford_wreckID')['Amphora type'].apply(l
 
 
 def interchange_cargoes(all_shipwrecks, production_times_all, num_randomizations):
-    num_frames = 1
+    num_frames = 3
     data_frames = []
 
     for frame in range(num_frames):
@@ -1274,8 +1274,8 @@ for amphora_type, origins in amphora_origins_all.items():
         origins_to_amphora_types[origin].append(amphora_type)
 
 # Print the origins and associated amphora types
-for origin, amphora_types in origins_to_amphora_types.items():
-    print(f"Origin: {origin}, Amphora Types: {amphora_types}")
+#for origin, amphora_types in origins_to_amphora_types.items():
+#    print(f"Origin: {origin}, Amphora Types: {amphora_types}")
 
 # The five empirical graphs for each time stamp
 emp_bc = bc_ships_0[0]
@@ -1349,30 +1349,69 @@ for graph, data_frame in [(graph_bc, emp_bc), (graph_ad1, emp_ad1), (graph_ad2, 
         graph.nodes[node]['Amphora types'] = valid_amphora_types
 
 # Print node attributes for a test graph (e.g., graph_bc)
-for node, attributes in graph_ad3.nodes(data=True):
-    print(f"Node: {node}, Amphora Types: {attributes.get('Amphora types', [])}")
+#for node, attributes in graph_ad3.nodes(data=True):
+#    print(f"Node: {node}, Amphora Types: {attributes.get('Amphora types', [])}")
 
 # Iterate through the graphs and their corresponding data frames
 for graph, data_frame in [(graph_bc, emp_bc), (graph_ad1, emp_ad1), (graph_ad2, emp_ad2), (graph_ad3, emp_ad3),
                           (graph_ad4_7, emp_ad4_7)]:
     for _, row in data_frame.iterrows():
         cargo_amphora_types = row['Amphora type']
+        cargo_origins = []
 
-        # Iterate through the nodes in the graph
-        for node in graph.nodes():
-            node_amphora_types = graph.nodes[node].get('Amphora types', [])
+        # Get the origins corresponding to each amphora type in the cargo
+        for amphora_type in cargo_amphora_types:
+            origins = amphora_origins_all.get(amphora_type, [])
+            cargo_origins.extend(origins)
 
-            # Check if any amphora types match between cargo and node attributes
-            if any(amphora_type in cargo_amphora_types for amphora_type in node_amphora_types):
-                # Add an edge between the nodes
-                for other_node in graph.nodes():
-                    if other_node != node:
-                        other_node_amphora_types = graph.nodes[other_node].get('Amphora types', [])
-                        if any(amphora_type in cargo_amphora_types for amphora_type in other_node_amphora_types):
-                            graph.add_edge(node, other_node)
+        # Connect nodes with edges based on cargo origins
+        for origin_1 in cargo_origins:
+            for origin_2 in cargo_origins:
+                if origin_1 != origin_2:
+                    if graph.has_edge(origin_1, origin_2):
+                        # If edge exists, increase its weight by 1
+                        graph[origin_1][origin_2]['weight'] += 1
+                    else:
+                        # If edge doesn't exist, add it with weight 1
+                        graph.add_edge(origin_1, origin_2, weight=1)
+
+    # Remove isolated nodes from the graph
+    isolated_nodes = list(nx.isolates(graph))
+    graph.remove_nodes_from(isolated_nodes)
+
+'''
+# List of graphs you want to visualize
+graphs_to_visualize = [graph_bc, graph_ad1, graph_ad2]
+graph_names = ['graph_bc', 'graph_ad1', 'graph_ad2']
+
+# Iterate through the graphs and plot each one
+for graph, name in zip(graphs_to_visualize, graph_names):
+    plt.figure(figsize=(10, 8))
+    pos = nx.spring_layout(graph)  # Layout for visualization
+
+    # Get edge weights to adjust line width
+    edge_weights = [graph[u][v]['weight'] for u, v in graph.edges]
+
+    # Scale edge weights to a suitable range for line width
+    max_weight = max(edge_weights)
+    min_weight = min(edge_weights)
+    scaled_weights = [5 * (weight - min_weight) / (max_weight - min_weight) + 1 for weight in edge_weights]
+
+    # Draw nodes and edges
+    nx.draw_networkx_nodes(graph, pos, node_size=200, node_color='skyblue', label='Nodes')
+    nx.draw_networkx_edges(graph, pos, alpha=0.4, width=scaled_weights, edge_color='gray')
+
+    # Add labels for nodes
+    labels = {node: node for node in graph.nodes()}
+    nx.draw_networkx_labels(graph, pos, labels, font_size=10)
+
+    plt.title(name)
+    plt.legend()
+    plt.show()
+'''
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Create the empirical (observed) partitions (Version 1, no inter-amphora type trade)
+# Create the empirical (observed) partitions
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -1380,35 +1419,27 @@ for graph, data_frame in [(graph_bc, emp_bc), (graph_ad1, emp_ad1), (graph_ad2, 
 def extract_provenance_data(graph):
     provenances_list = list(graph.nodes())
     provenance_to_amphora_dict = {}
-
     for provenance in provenances_list:
         provenance_to_amphora_dict[provenance] = graph.nodes[provenance].get('Amphora types', [])
-
     return provenances_list, provenance_to_amphora_dict
 
 
 # Function to create all possible partitions of provenances into two groups
 def create_partitions(provenances_list):
     all_partitions = []
-
     for r in range(1, len(provenances_list)):
         partitions = combinations(provenances_list, r)
         all_partitions.extend(partitions)
-
     return all_partitions
+
+
+# Function to check if a partition is valid based on side proportions
+def is_partition_valid(side_A_percentage, side_B_percentage):
+    return 20 <= side_A_percentage <= 80 and 20 <= side_B_percentage <= 80
 
 
 # List of networks
 networks = [graph_bc, graph_ad1, graph_ad2, graph_ad3, graph_ad4_7]
-
-# List to store partitions for each network
-partitions_list = []
-
-# Iterate through networks and extract provenance data
-for graph in networks:
-    prov_list, _ = extract_provenance_data(graph)
-    partitions = create_partitions(prov_list)
-    partitions_list.append(partitions)
 
 # List to store valid partitions for each network
 valid_partitions_list = []
@@ -1440,7 +1471,7 @@ for graph in networks:
         side_B_percentage = len(side_B) / len(prov_list) * 100
 
         # Check if the partition is valid
-        if 20 <= side_A_percentage <= 80 and 20 <= side_B_percentage <= 80:
+        if is_partition_valid(side_A_percentage, side_B_percentage):
             valid_partitions.append((side_A, side_B))
             valid_count += 1
         else:
@@ -1450,12 +1481,12 @@ for graph in networks:
     valid_partitions_count_list.append(valid_count)
     invalid_partitions_count_list.append(invalid_count)
 
-# Print the count of valid and invalid partitions for each network
+'''# Print the count of valid and invalid partitions for each network
 for i, (valid_count, invalid_count) in enumerate(zip(valid_partitions_count_list, invalid_partitions_count_list)):
     print(f"Network {i + 1}:")
     print("Valid Partitions:", valid_count)
     print("Invalid Partitions:", invalid_count)
-    print()
+    print()'''
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Analyzing the partitions of the observed networks
@@ -1502,516 +1533,266 @@ for i, valid_partitions in enumerate(valid_partitions_list):
         print()
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Partitions of the randomized networks
+# Create the randomized networks
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-'''# Function to perform Girvan-Newman algorithm
-def girvan_newman(graph):
-    def find_best_edge(G0):
-        eb = nx.edge_betweenness_centrality(G0)
-        return sorted(eb.items(), key=lambda x: x[1], reverse=True)[0][0]
+# Extract unique origins from data frames
+all_unique_origins_bc = []
+for df in bc_ships_1000:
+    origins_bc = extract_unique_origins(df['Amphora type'])
+    all_unique_origins_bc.append(origins_bc)
 
-    components = [c for c in nx.connected_components(graph)]
-    while len(components) == 1:
-        edge_to_remove = find_best_edge(graph)
-        graph.remove_edge(*edge_to_remove)
-        components = [c for c in nx.connected_components(graph)]
+all_unique_origins_ad1 = []
+for df in ad1_ships_1000:
+    origins_ad1 = extract_unique_origins(df['Amphora type'])
+    all_unique_origins_ad1.append(origins_ad1)
 
-    return components
+all_unique_origins_ad2 = []
+for df in ad2_ships_1000:
+    origins_ad2 = extract_unique_origins(df['Amphora type'])
+    all_unique_origins_ad2.append(origins_ad2)
 
+all_unique_origins_ad3 = []
+for df in ad3_ships_1000:
+    origins_ad3 = extract_unique_origins(df['Amphora type'])
+    all_unique_origins_ad3.append(origins_ad3)
 
-# Lists of networks for different centuries
-networks_list = [emp_networks_bc, emp_networks_ad1, emp_networks_ad2, emp_networks_ad3, emp_networks_ad4_7]
+all_unique_origins_ad4_7 = []
+for df in ad4_7_ships_1000:
+    origins_ad4_7 = extract_unique_origins(df['Amphora type'])
+    all_unique_origins_ad4_7.append(origins_ad4_7)
 
-# Perform Girvan-Newman algorithm for each century's networks
-partitions = {}
-for century_networks in networks_list:
-    century_partitions = []
+# Create networks with origins as nodes
+graphs_bc_random = []
+for origins_bc_list in all_unique_origins_bc:
+    graph_bc = nx.Graph()
+    graph_bc.add_nodes_from(origins_bc_list)
+    graphs_bc_random.append(graph_bc)
 
-    for graph in century_networks:
-        components = girvan_newman(graph)
-        century_partitions.extend(components)
+graphs_ad1_random = []
+for origins_ad1_list in all_unique_origins_ad1:
+    graph_ad1 = nx.Graph()
+    graph_ad1.add_nodes_from(origins_ad1_list)
+    graphs_ad1_random.append(graph_ad1)
 
-    partitions[century_networks] = century_partitions
+graphs_ad2_random = []
+for origins_ad2_list in all_unique_origins_ad2:
+    graph_ad2 = nx.Graph()
+    graph_ad2.add_nodes_from(origins_ad2_list)
+    graphs_ad2_random.append(graph_ad2)
 
-# Filter partitions based on size criteria
-filtered_partitions = {}
-for century_networks, century_components in partitions.items():
-    filtered_components = []
+graphs_ad3_random = []
+for origins_ad3_list in all_unique_origins_ad3:
+    graph_ad3 = nx.Graph()
+    graph_ad3.add_nodes_from(origins_ad3_list)
+    graphs_ad3_random.append(graph_ad3)
 
-    for component in century_components:
-        num_nodes = sum(len(graph.nodes()) for graph in component)
-        total_nodes = sum(len(graph.nodes()) for graph in century_networks)
+graphs_ad4_7_random = []
+for origins_ad4_7_list in all_unique_origins_ad4_7:
+    graph_ad4_7 = nx.Graph()
+    graph_ad4_7.add_nodes_from(origins_ad4_7_list)
+    graphs_ad4_7_random.append(graph_ad4_7)
 
-        if 0.2 * total_nodes < num_nodes < 0.8 * total_nodes:
-            filtered_components.append(component)
+# Iterate through the lists of networks and their corresponding lists of data frames
+for graph_list, rand_data_frame_list in zip([graphs_bc_random, graphs_ad1_random, graphs_ad2_random,
+                                             graphs_ad3_random, graphs_ad4_7_random],
+                                            [bc_ships_1000, ad1_ships_1000, ad2_ships_1000,
+                                             ad3_ships_1000, ad4_7_ships_1000]):
+    for graph, rand_data_frame in zip(graph_list, rand_data_frame_list):
+        origins_with_amphora_types = {}
 
-    filtered_partitions[century_networks] = filtered_components
+        for node in graph.nodes():
+            amphora_types_from_origin = origins_with_amphora_types.get(node, [])
+            amphora_types_in_data_frame = set()
 
-# Print the filtered partitions
-for century_networks, components in filtered_partitions.items():
-    print(f"Partitions for Century {century_networks}:")
-    for i, component in enumerate(components):
-        print(f"Partition {i + 1}: {component}")
-    print()
+            for amphora_type_list in rand_data_frame['Amphora type']:
+                amphora_types_in_data_frame.update(amphora_type_list)
 
-# Calculate community metrics and mixing weights
-for century_networks, components in filtered_partitions.items():
-    print(f"Century {century_networks}:")
+            valid_amphora_types = [amphora_type for amphora_type in amphora_types_from_origin if
+                                   amphora_type in amphora_types_in_data_frame]
 
-    for i, component in enumerate(components):
-        W_tot = 0
-        W_S = 0
-        W_sameprov = 0
+            graph.nodes[node]['Amphora types'] = valid_amphora_types
 
-        for graph in component:
-            for u, v, data in graph.edges(data=True):
-                provenance_u = amphora_origins.get(u, [None])[0]
-                provenance_v = amphora_origins.get(v, [None])[0]
-                weight = data.get('weight', 0)
+        for _, row in rand_data_frame.iterrows():
+            cargo_amphora_types = row['Amphora type']
+            cargo_origins = []
 
-                if provenance_u != provenance_v:
-                    W_tot += weight
+            for amphora_type in cargo_amphora_types:
+                origins = amphora_origins_all.get(amphora_type, [])
+                cargo_origins.extend(origins)
 
-                if provenance_u == provenance_v:
-                    W_S += weight
-                else:
-                    W_sameprov += weight
+            for origin_1 in cargo_origins:
+                for origin_2 in cargo_origins:
+                    if origin_1 != origin_2:
+                        if graph.has_edge(origin_1, origin_2):
+                            graph[origin_1][origin_2]['weight'] += 1
+                        else:
+                            graph.add_edge(origin_1, origin_2, weight=1)
 
-        M = 0 if W_tot == 0 else W_sameprov / W_tot
+        # Remove isolated nodes from the graph
+        isolated_nodes = list(nx.isolates(graph))
+        graph.remove_nodes_from(isolated_nodes)
 
-        print(f"Partition {i + 1}:")
-        print(f"Total weight of links between different provenances: {W_tot}")
-        print(f"Total weight of links between nodes belonging to the same side of the partition: {W_S}")
-        print(f"Total weight of links between nodes belonging to different sides of the partition: {W_sameprov}")
-        print(f"Mixing weight (M): {M}")
-        print()
+'''
+# Plot a few of the randomized graphs
+num_graphs_to_plot = 3  # You can change this to the number of graphs you want to plot
+
+for graph_list, label in zip([graphs_bc_random, graphs_ad1_random, graphs_ad2_random,
+                              graphs_ad3_random, graphs_ad4_7_random],
+                             ['BC', 'AD1', 'AD2', 'AD3', 'AD4-7']):
+    for i, graph in enumerate(graph_list[:num_graphs_to_plot]):
+        plt.figure(figsize=(10, 10))
+        pos = nx.spring_layout(graph)  # You can choose a different layout if needed
+
+        # Normalize edge weights to [0.1, 1] range for scaling
+        weights = [d['weight'] for _, _, d in graph.edges(data=True)]
+        max_weight = max(weights)
+        min_weight = min(weights)
+        normalized_weights = [5 * (w - min_weight) / (max_weight - min_weight) + 1 for w in weights]
+
+        # Draw nodes and edges with scaled weights
+        nx.draw_networkx_nodes(graph, pos, node_size=200, node_color='skyblue', label='Nodes')
+        nx.draw_networkx_edges(graph, pos, alpha=0.4, width=normalized_weights, edge_color='gray')
+
+        labels = {node: node for node in graph.nodes()}
+        nx.draw_networkx_labels(graph, pos, labels, font_size=10)
+        plt.title(f"Randomized Network - {label} - Graph {i + 1}")
+        plt.show()
 '''
 
-# Rest
-
-'''
-# Function to perform Girvan-Newman algorithm
-def girvan_newman(graph):
-    def find_best_edge(G0):
-        eb = nx.edge_betweenness_centrality(G0)
-        return sorted(eb.items(), key=lambda x: x[1], reverse=True)[0][0]
-
-    components = [c for c in nx.connected_components(graph)]
-    while len(components) == 1:
-        edge_to_remove = find_best_edge(graph)
-        graph.remove_edge(*edge_to_remove)
-        components = [c for c in nx.connected_components(graph)]
-
-    return components
-
-
-# Perform Girvan-Newman algorithm for each century's graph
-partitions = {}
-for century, graph in amphora_networks.items():
-    components = girvan_newman(graph)
-    partitions[century] = components
-
-# Filter partitions based on size criteria
-filtered_partitions = {}
-for century, components in partitions.items():
-    filtered_components = []
-    for component in components:
-        num_nodes = len(component)
-        if num_nodes > 0.2 * graph.number_of_nodes() and num_nodes < 0.8 * graph.number_of_nodes():
-            filtered_components.append(component)
-    filtered_partitions[century] = filtered_components
-
-# Print the filtered partitions
-for century, components in filtered_partitions.items():
-    print(f"Partitions for Century {century}:")
-    for i, component in enumerate(components):
-        print(f"Partition {i+1}: {component}")
-    print()
-
-# a) Calculate W_tot
-W_tot = 0
-# Iterate over the edges of the graph
-for u, v, data in graph.edges(data=True):
-    provenance_u = amphora_origins.get(u, [None])[0]  # Get the provenance of node u
-    provenance_v = amphora_origins.get(v, [None])[0]  # Get the provenance of node v
-
-    if provenance_u != provenance_v:
-        weight = data.get('weight', 0)  # Get the weight of the edge
-        W_tot += weight
-
-print(f"Total weight of links between different provenances: {W_tot}")
-
-# b) Calculate W_S
-# Calculate W_S for each partition
-W_S = {}
-for century, components in filtered_partitions.items():
-    W_S[century] = 0
-
-    for component in components:
-        # Define the set of provenances belonging to side S of the partition
-        partition_S = set()
-
-        # Iterate over the nodes in side S and add their provenances to the set
-        for node in component:
-            provenance = amphora_origins.get(node, [None])[0]  # Get the provenance of the node
-            if provenance is not None:
-                partition_S.add(provenance)
-
-        # Iterate over the edges of the graph
-        for u, v, data in amphora_networks[century].edges(data=True):
-            provenance_u = amphora_origins.get(u, [None])[0]  # Get the provenance of node u
-            provenance_v = amphora_origins.get(v, [None])[0]  # Get the provenance of node v
-
-            # Check if nodes u and v belong to the same side S of the partition
-            if provenance_u in partition_S and provenance_v in partition_S:
-                # Check if nodes u and v have different provenances
-                if provenance_u != provenance_v:
-                    weight = data.get('weight', 0)  # Get the weight of the edge
-                    W_S[century] += weight
-
-    print(f"Total weight of links between nodes belonging to the same side of the partition (Century {century}): {W_S[century]}")
-
-# c) Calculate W_sameprov and M
-# Calculate W_sameprov and M for each partition
-W_sameprov = {}
-mixing_weights = {}  # Define the mixing_weights dictionary
-for century, components in filtered_partitions.items():
-    W_tot = 0
-    W_S = 0
-
-    for component in components:
-        # Define the set of provenances belonging to side S of the partition
-        partition_S = set()
-
-        # Iterate over the nodes in side S and add their provenances to the set
-        for node in component:
-            provenance = amphora_origins.get(node, [None])[0]  # Get the provenance of the node
-            if provenance is not None:
-                partition_S.add(provenance)
-
-        # Iterate over the edges of the graph
-        for u, v, data in amphora_networks[century].edges(data=True):
-            provenance_u = amphora_origins.get(u, [None])[0]  # Get the provenance of node u
-            provenance_v = amphora_origins.get(v, [None])[0]  # Get the provenance of node v
-
-            weight = data.get('weight', 0)  # Get the weight of the edge
-            W_tot += weight
-
-            # Check if nodes u and v belong to the same side S of the partition
-            if provenance_u in partition_S and provenance_v in partition_S:
-                # Check if nodes u and v have different provenances
-                if provenance_u != provenance_v:
-                    W_S += weight
-
-    # Calculate W_sameprov
-    W_sameprov[century] = W_tot - W_S
-
-    print(f"Total weight of links between nodes belonging to different sides of the partition (Century {century}): {W_sameprov[century]}")
-
-    # Calculate mixing weight (M)
-    if W_tot != 0:
-        M = W_sameprov[century] / W_tot
-    else:
-        M = 0
-
-    mixing_weights[century] = M
-
-    print(f"Mixing weight (M) for Century {century}: {M}")
-'''
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Manipulate randomized network for partitions
+# Create the randomized partitions
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-'''
-# Now we want to do the same for randomized graphs
-# For that we start by manipulating our data frames
-# Iterate over each data frame in rand_list_1000
-for i in range(len(rand_list_1000)):
-    # Filter rows with multiple values in 'Amphora type'
-    rand_list_1000[i] = rand_list_1000[i][rand_list_1000[i]['Amphora type'].apply(len) > 1]
 
-print(rand_list_1000)
+# List of randomized networks
+random_networks = [graphs_bc_random, graphs_ad1_random, graphs_ad2_random, graphs_ad3_random, graphs_ad4_7_random]
 
+# List to store valid partitions for each network
+random_valid_partitions_list = []
 
-# Define the check_overlap function to check if all cargo production times overlap
-def check_overlap(cargo_times):
-    specified_centuries = ['2 BC', '1 BC', '1 AD', '2 AD', '3 AD', '4 AD', '5 AD', '6 AD', '7 AD']
-    overlapping_centuries = []
-    for century in specified_centuries:
-        if all(any(century in times for times in cargo) for cargo in cargo_times):
-            overlapping_centuries.append(century)
-    return overlapping_centuries
+# List to store valid and invalid partitions count for each network
+random_valid_partitions_count_list = []
+random_invalid_partitions_count_list = []
 
+# Iterate through randomized networks and extract provenance data
+for network_graphs in random_networks:
+    network_valid_partitions = []
+    network_valid_count = []
+    network_invalid_count = []
 
-# Create a list to store the shipwreck dictionaries
-shipwreck_dict_list = []
+    for graph in network_graphs:
+        prov_list, prov_to_amphora = extract_provenance_data(graph)
+        partitions = create_partitions(prov_list)
+        valid_partitions = []
+        valid_count = 0
+        invalid_count = 0
 
-# Iterate through the data frames in the 'rand_list_1000' list
-for df in rand_list_1000:
-    for index, row in df.iterrows():
-        shipwreck_dict = {}  # Dictionary to store the shipwreck details
-        shipwreck_dict['Shipwreck ID'] = row['Oxford_wreckID']
-        cargo = row['Amphora type']
+        for partition in partitions:
+            side_A = partition
+            side_B = [prov for prov in prov_list if prov not in partition]
 
-        # Get the production times for each amphora type in the cargo
-        cargo_times = [production_times.get(amphora, []) for amphora in cargo]
+            # Exclude 'Unknown/Uncertain' amphora types from both sides
+            side_A_amphora = [amphora for provenance in side_A for amphora in prov_to_amphora[provenance] if
+                              provenance != 'Unknown/Uncertain']
+            side_B_amphora = [amphora for provenance in side_B for amphora in prov_to_amphora[provenance] if
+                              provenance != 'Unknown/Uncertain']
 
-        # Check if any cargo production times overlap with the specified centuries
-        overlapping_centuries = check_overlap(cargo_times)
-        if overlapping_centuries:
-            for century in overlapping_centuries:
-                shipwreck_dict = {}
-                shipwreck_dict['Shipwreck ID'] = row['Oxford_wreckID']
-                shipwreck_dict['Century'] = century
-                shipwreck_dict['Cargo'] = cargo
-                shipwreck_dict_list.append(shipwreck_dict)
-        else:
-            century_dict = {
-                '2 BC': any('2 BC' in times for times in cargo_times),
-                '1 BC': any('1 BC' in times for times in cargo_times),
-                '1 AD': any('1 AD' in times for times in cargo_times),
-                '2 AD': any('2 AD' in times for times in cargo_times),
-                '3 AD': any('3 AD' in times for times in cargo_times),
-                '4 AD': any('4 AD' in times for times in cargo_times),
-                '5 AD': any('5 AD' in times for times in cargo_times),
-                '6 AD': any('6 AD' in times for times in cargo_times),
-                '7 AD': any('7 AD' in times for times in cargo_times)
-            }
+            # Check for missing keys
+            missing_keys_A = [prov for prov in side_A if prov not in prov_to_amphora]
+            missing_keys_B = [prov for prov in side_B if prov not in prov_to_amphora]
 
-            if century_dict['2 BC']:
-                shipwreck_dict['Century'] = '2 BC'
-            elif century_dict['1 BC']:
-                shipwreck_dict['Century'] = '1 BC'
-            elif century_dict['1 AD']:
-                shipwreck_dict['Century'] = '1 AD'
-            elif century_dict['2 AD']:
-                shipwreck_dict['Century'] = '2 AD'
-            elif century_dict['3 AD']:
-                shipwreck_dict['Century'] = '3 AD'
-            elif century_dict['4 AD']:
-                shipwreck_dict['Century'] = '4 AD'
-            elif century_dict['5 AD']:
-                shipwreck_dict['Century'] = '5 AD'
-            elif century_dict['6 AD']:
-                shipwreck_dict['Century'] = '6 AD'
-            elif century_dict['7 AD']:
-                shipwreck_dict['Century'] = '7 AD'
+            if missing_keys_A:
+                print(f"Missing keys in side A: {missing_keys_A}")
+            if missing_keys_B:
+                print(f"Missing keys in side B: {missing_keys_B}")
+
+            # Calculate the percentage of nodes in each side
+            side_A_percentage = len(side_A) / len(prov_list) * 100
+            side_B_percentage = len(side_B) / len(prov_list) * 100
+
+            # Check if the partition is valid
+            if is_partition_valid(side_A_percentage, side_B_percentage):
+                valid_partitions.append((side_A, side_B))
+                valid_count += 1
             else:
-                for century, has_century in century_dict.items():
-                    if has_century:
-                        shipwreck_dict['Century'] = century
-                        break
+                invalid_count += 1
 
-            shipwreck_dict['Cargo'] = cargo
-            shipwreck_dict_list.append(shipwreck_dict)
+        network_valid_partitions.append(valid_partitions)
+        network_valid_count.append(valid_count)
+        network_invalid_count.append(invalid_count)
 
-# Group shipwrecks by century
-shipwrecks_by_century = {'2 BC': [], '1 BC': [], '1 AD': [], '2 AD': [], '3 AD': [], '4 AD': [], '5 AD': [], '6 AD': [], '7 AD': []}
+    random_valid_partitions_list.append(network_valid_partitions)
+    random_valid_partitions_count_list.append(network_valid_count)
+    random_invalid_partitions_count_list.append(network_invalid_count)
 
-# Iterate through the shipwreck dictionaries
-for shipwreck_dict in shipwreck_dict_list:
-    century = shipwreck_dict['Century']
-    shipwrecks_by_century[century].append(shipwreck_dict)
-
-# Print the resulting dictionary with centuries as keys and shipwrecks and cargo as values
-for century, shipwrecks in shipwrecks_by_century.items():
-    print(century)
-    for shipwreck in shipwrecks:
-        print(shipwreck['Shipwreck ID'])
-        print(shipwreck['Cargo'])
-
-
-# Create an empty dictionary to store the shipwrecks
-shipwrecks_by_century = {}
-
-# Iterate through the shipwreck dictionaries
-for shipwreck_dict in shipwreck_dict_list:
-    century = shipwreck_dict['Century']
-    shipwreck_id = shipwreck_dict['Shipwreck ID']
-    cargo = shipwreck_dict['Cargo']
-
-    # Create the century key if it doesn't exist
-    if century not in shipwrecks_by_century:
-        shipwrecks_by_century[century] = {}
-
-    # Create the shipwreck ID key if it doesn't exist
-    if shipwreck_id not in shipwrecks_by_century[century]:
-        shipwrecks_by_century[century][shipwreck_id] = set()
-
-    # Add the cargo to the shipwreck's cargo set
-    shipwrecks_by_century[century][shipwreck_id].update(cargo)
-
-# Print the resulting dictionary
-# print(shipwrecks_by_century)
-
-# Create a list to store the dictionaries for each data frame
-shipwrecks_by_century_list = []
-
-# Iterate through the data frames in 'rand_list_1000'
-for df in rand_list_1000:
-    # Create an empty dictionary to store the shipwrecks
-    shipwrecks_by_century = {}
-
-    # Iterate through the shipwreck dictionaries
-    for shipwreck_dict in shipwreck_dict_list:
-        century = shipwreck_dict['Century']
-        shipwreck_id = shipwreck_dict['Shipwreck ID']
-        cargo = shipwreck_dict['Cargo']
-
-        # Create the century key if it doesn't exist
-        if century not in shipwrecks_by_century:
-            shipwrecks_by_century[century] = {}
-
-        # Create the shipwreck ID key if it doesn't exist
-        if shipwreck_id not in shipwrecks_by_century[century]:
-            shipwrecks_by_century[century][shipwreck_id] = set()
-
-        # Add the cargo to the shipwreck's cargo set
-        shipwrecks_by_century[century][shipwreck_id].update(cargo)
-
-    # Append the shipwrecks by century dictionary to the list
-    shipwrecks_by_century_list.append(shipwrecks_by_century)
-
-# Print the resulting list of dictionaries
-for idx, shipwrecks_by_century in enumerate(shipwrecks_by_century_list):
-    print(f"Dictionary for Data Frame {idx + 1}:")
-    for century, shipwrecks in shipwrecks_by_century.items():
-        print(century)
-        for shipwreck_id, cargo in shipwrecks.items():
-            print(shipwreck_id)
-            print(cargo)
-        print()
-
-# Create the time stamps
-for dictionary in shipwrecks_by_century_list:
-    # Merge '1 BC' and '2 BC' into 'BC'
-    dictionary['BC'] = {**dictionary.pop('1 BC', {}), **dictionary.pop('2 BC', {})}
-
-    # Merge '4 AD', '5 AD', '6 AD', and '7 AD' into '4-7 AD'
-    dictionary['4-7 AD'] = {
-        **dictionary.pop('4 AD', {}),
-        **dictionary.pop('5 AD', {}),
-        **dictionary.pop('6 AD', {}),
-        **dictionary.pop('7 AD', {})
-    }
-
-    # Rename '1 AD' as is
-    # Rename '2 AD' as is
-    # Rename '3 AD' as is
-
-    # Remove any other keys not needed
-    keys_to_remove = ['2 BC', '1 BC', '4 AD', '5 AD', '6 AD', '7 AD']
-    for key in keys_to_remove:
-        dictionary.pop(key, None)
+'''# Print the count of valid and invalid partitions for each network
+for network_idx, (valid_count_list, invalid_count_list) in enumerate(zip(random_valid_partitions_count_list,
+                                                                         random_invalid_partitions_count_list)):
+    for i, (valid_count, invalid_count) in enumerate(zip(valid_count_list, invalid_count_list)):
+        print(f"Network {network_idx + 1}, Graph {i + 1}:")
+        print("Valid Partitions:", valid_count)
+        print("Invalid Partitions:", invalid_count)
+        print()'''
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Create the graphs for the randomized network
+# Analyzing the partitions of the randomized networks
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-# Create the graphs for the randomized network
-amphora_networks_by_century = []  # Create a list to store the networks for each time stamp
-amphora_networks_dict = {}  # Create a dictionary to store the networks with keys as numbers of the current dictionary
+# List to store analysis results for each network
+random_analysis_results_list = []
 
-for idx, dictionary in enumerate(shipwrecks_by_century_list):
-    connections = {}
-    G_rand = nx.Graph()
+# Iterate through the valid partitions for each network
+for network_idx, network_valid_partitions in enumerate(random_valid_partitions_list):
+    print(f"Analysis for Random Network {network_idx + 1}:")
 
-    for century_label, shipwrecks in dictionary.items():
-        for shipwreck_id, amphora_types in shipwrecks.items():
-            pairs = {(min(amphora_type_i, amphora_type_j), max(amphora_type_i, amphora_type_j)) for amphora_type_i in amphora_types for amphora_type_j in amphora_types if amphora_type_i != amphora_type_j}
+    for graph_idx, valid_partitions in enumerate(network_valid_partitions):
+        for partition_idx, partition in enumerate(valid_partitions):
+            side_A, side_B = partition
 
-            for pair in pairs:
-                if pair[0] != pair[1]:
-                    connections.setdefault(pair, 0)
-                    connections[pair] += 1
-                    G_rand.add_edge(pair[0], pair[1], weight=connections[pair])
+            # Initialize weights
+            W_total_emp = 0
+            W_s1_emp = 0
+            W_s2_emp = 0
 
-    strength_of_connection = connections
-    amphora_networks_by_century.append(G_rand)
-    amphora_networks_dict[idx] = G_rand
+            # Calculate the total weight W_total_emp of edges in the graph
+            for node1, node2 in graph.edges():
+                W_total_emp += 1  # Increase the total weight for each edge
 
-print(amphora_networks_dict)
+                # Calculate the total weight of edges between nodes that are part of the same side of the partition
+                if node1 in side_A and node2 in side_A:
+                    W_s1_emp += 1
+                elif node1 in side_B and node2 in side_B:
+                    W_s2_emp += 1
 
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Partitions for the randomized network
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            # Calculate the total weight of edges between nodes of different sides of the partition: W_d_emp = W_total_emp -  W_s1_emp - W_s2_emp
+            W_d_emp = W_total_emp - W_s1_emp - W_s2_emp
 
-# Perform Girvan-Newman algorithm and calculate statistics for each network
-avg_stats_by_century = []
+            # Calculate the mixing weight: M_emp = W_d_emp / W_total_emp
+            M_emp = W_d_emp / W_total_emp if W_total_emp > 0 else 0
 
-for graph in amphora_networks_by_century:
-    components = girvan_newman(graph)
+            '''# Print the analysis results for the current partition
+            print(f"Random Network {network_idx + 1}, Graph {graph_idx + 1}, Partition {partition_idx + 1}:")
+            print(f"Total weight of edges in the graph: {W_total_emp}")
+            print(f"Total weight of edges within side A: {W_s1_emp}")
+            print(f"Total weight of edges within side B: {W_s2_emp}")
+            print(f"Total weight of edges between sides: {W_d_emp}")
+            print(f"Mixing weight (M): {M_emp}")
+            print()'''
 
-    # Filter partitions based on size criteria
-    filtered_components = []
-    for component in components:
-        num_nodes = len(component)
-        if num_nodes > 0.2 * graph.number_of_nodes() and num_nodes < 0.8 * graph.number_of_nodes():
-            filtered_components.append(component)
+# Iterate through the valid partitions for each network
+for network_idx, network_valid_partitions in enumerate(random_valid_partitions_list):
+    print(f"Random Network {network_idx + 1}:")
 
-    # Calculate statistics for the current network
-    W_tot = 0
-    W_S = 0
-    W_sameprov = 0
+    for graph_idx, valid_partitions in enumerate(network_valid_partitions):
+        print(f"  Graph {graph_idx + 1}:")
 
-    for u, v, data in graph.edges(data=True):
-        provenance_u = amphora_origins.get(u, [None])[0]  # Get the provenance of node u
-        provenance_v = amphora_origins.get(v, [None])[0]  # Get the provenance of node v
+        for partition_idx, partition in enumerate(valid_partitions[:5]):  # Print only the first 5 partitions
+            side_A, side_B = partition
 
-        if provenance_u != provenance_v:
-            weight = data.get('weight', 0)  # Get the weight of the edge
-            W_tot += weight
+            # Print the partition
+            print(f"    Partition {partition_idx + 1}:")
+            print(f"      Side A: {side_A}")
+            print(f"      Side B: {side_B}")
+            print()
 
-        if provenance_u == provenance_v:
-            W_S += weight
-        else:
-            W_sameprov += weight
-
-    if W_tot != 0:
-        M = W_sameprov / W_tot
-    else:
-        M = 0
-
-    # Append statistics to the list for the current century
-    avg_stats_by_century.append({
-        'W_tot': W_tot,
-        'W_S': W_S,
-        'W_sameprov': W_sameprov,
-        'M': M
-    })
-
-# Calculate the average statistics for each century
-avg_stats_over_time = {
-    'W_tot': 0,
-    'W_S': 0,
-    'W_sameprov': 0,
-    'M': 0
-}
-
-for i, stats in enumerate(avg_stats_by_century):
-    print(f"Statistics for Century {i+1}:")
-    print(f"Average total weight of links between different provenances: {stats['W_tot']}")
-    print(f"Average total weight of links between nodes belonging to the same side of the partition: {stats['W_S']}")
-    print(f"Average total weight of links between nodes belonging to different sides of the partition: {stats['W_sameprov']}")
-    print(f"Average mixing weight (M): {stats['M']}")
-    print()
-
-    # Accumulate statistics for averaging over all time stamps
-    avg_stats_over_time['W_tot'] += stats['W_tot']
-    avg_stats_over_time['W_S'] += stats['W_S']
-    avg_stats_over_time['W_sameprov'] += stats['W_sameprov']
-    avg_stats_over_time['M'] += stats['M']
-
-# Average the statistics over all time stamps
-num_centuries = len(avg_stats_by_century)
-avg_stats_over_time['W_tot'] /= num_centuries
-avg_stats_over_time['W_S'] /= num_centuries
-avg_stats_over_time['W_sameprov'] /= num_centuries
-avg_stats_over_time['M'] /= num_centuries
-
-# Print average statistics over all time stamps
-print("Average Statistics over all Time Stamps:")
-print(f"Average total weight of links between different provenances: {avg_stats_over_time['W_tot']}")
-print(f"Average total weight of links between nodes belonging to the same side of the partition: {avg_stats_over_time['W_S']}")
-print(f"Average total weight of links between nodes belonging to different sides of the partition: {avg_stats_over_time['W_sameprov']}")
-print(f"Average mixing weight (M): {avg_stats_over_time['M']}")'''
+print(amphora_origins)
